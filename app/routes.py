@@ -10,7 +10,7 @@ def malicious_payload_detect():
     data = request.json
     result = data["request_data"]
     detector = XGBoostDetector()
-    is_malicious = detector.predict([result])
-    if not is_malicious:
+    is_safe = detector.predict([result])
+    if not is_safe:
         threading.Thread(target=run_mcp_client, args=([result],), daemon=True).start()
     
