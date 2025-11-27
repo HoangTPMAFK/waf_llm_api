@@ -1,12 +1,54 @@
-version: "3.9"
-
 services:
+  waf:
+    build: ./waf_firewall
+    container_name: waf_firewall
+    ports:
+      - "8080:80"
+    volumes:
+      - modsec_rules:/etc/modsec/rules
+      - ./waf_firewall/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./waf_firewall/logs/modsec_audit.log:/var/log/modsec_audit.log
+      - ./waf_firewall/logs/modsec_debug.log:/var/log/modsec_debug.log
+      - ./waf_firewall/logs/nginx_access.log:/var/log/nginx/access.log
+      - ./waf_firewall/logs/nginx_error.log:/var/log/nginx/error.log
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    networks:
+      - waf_network
+    depends_on:
+      - web_interface
+      - ml_detector
+
   ml_detector:
-    build: .
+    build: ./ml_detector
     container_name: ml_detector
     ports:
       - "5000:5000"
     volumes:
-      - ./:/app
+      - ./ml_detector:/app
+      - modsec_rules:/app/modsec_rules
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY:-default-secret-key}
+    networks:
+      - waf_network
     command: python run.py
-    restart: always
+  
+  web_interface:
+    build: ./web-interface
+    container_name: web_interface
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./web-interface:/app
+    networks:
+      - waf_network
+    depends_on:
+      - ml_detector
+
+volumes:
+  modsec_rules:
+
+networks:
+  waf_network:
+    driver: bridge
+

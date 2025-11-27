@@ -1,0 +1,8 @@
+# Ignore all log files
+*.log
+*.log.*
+.env
+
+# But track .gitignore itself
+!.gitignore
+

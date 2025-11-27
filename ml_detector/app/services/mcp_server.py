@@ -6,20 +6,20 @@ mcp = FastMCP("rule_writer")
 
 @mcp.tool(name="write_to_file", description="Write provided ModSecurity rules into rules.txt (append). Argument: content: str")
 def write_to_file(content: str) -> str:
-    with open("rules.txt", "a") as file:
-        file.write(content)
-    return "Content written to rules.txt"
+    with open("/app/modsec_rules/custom-rules.conf", "a") as file:
+        file.write(content + "\n")
+    return "Content written to ModSecurity rules"
 
 @mcp.tool(name="rewrite_rule_file", description="Rewrite the rules.txt with provided content. Argument: content: str")
 def rewrite_rule_file(content: str) -> str:
-    with open("rules.txt", "w") as file:
-        file.write(content)
-    return "Rewritten rules.txt"
+    with open("/app/modsec_rules/custom-rules.conf", "w") as file:
+        file.write(content + "\n")
+    return "Rewritten ModSecurity rules"
 
 @mcp.tool(name="read_rule_file", description="Read the current rules.txt. Returns empty string if file not found or file empty.")
 def read_rule_file() -> str:
     try:
-        with open("rules.txt", "r") as file:
+        with open("/app/modsec_rules/custom-rules.conf", "r") as file:
             return file.read()
     except FileNotFoundError:
         return ""
