@@ -22,18 +22,73 @@ detection_log = []
 def malicious_payload_detect():
     try:
         data = request.json
-        result = data.get("request_data", "")
+        logger.info(f"🔍 Received data: {data}")
+        
+        request_data = data.get("request_data", "")
         client_ip = data.get("client_ip", request.remote_addr)
         timestamp = datetime.now().isoformat()
         
-        # Convert dict to JSON string if needed for detector
-        if isinstance(result, dict):
-            result = json.dumps(result)
+        if isinstance(request_data, str):
+            try:
+                request_data = json.loads(request_data)
+            except:
+                pass
+        
+        static_file_extensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map']
+        
+        uri = ""
+        if isinstance(request_data, dict) and "uri" in request_data:
+            uri = str(request_data["uri"]).lower()
+        
+        if any(uri.endswith(ext) for ext in static_file_extensions):
+            logger.info(f"⚡ Skipping static file: {uri}")
+            return jsonify({
+                "is_safe": True,
+                "status": "skipped_static_file",
+                "timestamp": timestamp
+            })
+        
+        payload_list = []
+        
+        if isinstance(request_data, dict):
+            if "body" in request_data and request_data["body"]:
+                body_str = str(request_data["body"])
+                
+                try:
+                    body_json = json.loads(body_str)
+                    if isinstance(body_json, dict):
+                        for key, value in body_json.items():
+                            payload_list.append(str(value))
+                    else:
+                        payload_list.append(body_str)
+                except:
+                    if "&" in body_str or "=" in body_str:
+                        for pair in body_str.split("&"):
+                            if "=" in pair:
+                                key, value = pair.split("=", 1)
+                                payload_list.append(str(value))
+                            else:
+                                payload_list.append(str(pair))
+                    else:
+                        payload_list.append(body_str)
+            
+            if "query" in request_data and isinstance(request_data["query"], dict):
+                for key, value in request_data["query"].items():
+                    payload_list.append(str(value))
+        else:
+            payload_list.append(str(request_data))
+        
+        request_data_str = json.dumps(request_data) if isinstance(request_data, dict) else str(request_data)
         
         logger.info(f"🔍 Analyzing request from {client_ip}")
-        logger.info(f"📦 Payload preview: {str(result)[:200]}...")
+        logger.info(f"📦 Extracted {len(payload_list)} values from request")
         
-        is_safe = detector.predict([result])
+        if len(payload_list) == 0:
+            logger.info(f"⚠️  No payload data to analyze, marking as SAFE")
+            is_safe = True
+        else:
+            logger.info(f"📦 Payload list preview: {payload_list[:3]}...")
+            is_safe = detector.predict(payload_list, logger)
         
         if is_safe:
             logger.info(f"✅ Request is SAFE")
@@ -41,23 +96,23 @@ def malicious_payload_detect():
                 "timestamp": timestamp,
                 "ip": client_ip,
                 "result": "SAFE",
-                "payload": str(result)[:100]
+                "payload": request_data_str[:100]
             })
         else:
             logger.warning(f"🚨 MALICIOUS REQUEST DETECTED!")
-            logger.warning(f"🎯 Payload: {result}")
+            logger.warning(f"🎯 Payload: {request_data_str}")
             logger.info(f"🤖 Triggering LLM rule generation...")
             
             detection_log.append({
                 "timestamp": timestamp,
                 "ip": client_ip,
                 "result": "MALICIOUS",
-                "payload": str(result)
+                "payload": request_data_str
             })
             
             threading.Thread(
                 target=run_mcp_client, 
-                args=([result],), 
+                args=(payload_list,), 
                 daemon=True
             ).start()
         

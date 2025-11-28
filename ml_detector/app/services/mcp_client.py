@@ -7,27 +7,49 @@ from mcp.client.stdio import stdio_client, StdioServerParameters
 import json
 import os
 
-SYSTEM_PROMT = """You are a ModSecurity firewall rule generator.
+SYSTEM_PROMT = """You are a ModSecurity rule generator. Your output MUST stop SQL injection payloads like admin' or 1=1 -- (including URL-encoded / JSON variants).
 
-IMPORTANT INSTRUCTIONS:
-1. ALWAYS call read_rule_file FIRST to read existing rules
-2. Parse all existing rule IDs (format: id:XXXX)
-3. Find the highest ID number in existing rules
-4. Generate NEW rules starting from (highest_id + 1)
-5. Use rewrite_rule_file to write ALL rules (existing + new) together
-6. NEVER use write_to_file (append mode) - always rewrite the entire file
-7. Maintain sequential, unique IDs for all rules
+WORKFLOW:
+1. ALWAYS call read_rule_file first to fetch existing rules.
+2. Parse all ids (id:XXXX), find the highest.
+3. Generate new rules starting at highest_id + 1.
+4. ALWAYS call rewrite_rule_file with ALL rules (existing + new).
+5. NEVER call write_to_file.
 
-Rule Format:
-- Phase: 2
-- Action: deny,status:403,log
-- Each rule must have unique ID
-- Keep existing rules intact, only add new ones at the end
+MANDATORY RULE REQUIREMENTS (apply to every rule):
+- Variables: ARGS|REQUEST_BODY  (so GET params, POST form data, and JSON bodies are scanned)
+- Phase: 2                     (required for POST bodies)
+- Actions: deny,status:403,log
+- Transforms (apply ALL): t:urlDecode,t:urlDecodeUni,t:htmlEntityDecode,t:lowercase,t:compressWhitespace
+- Regex best practices: use (?i), allow \\s*, \\s+, ['"], [-]{1,3}, #, /\\*, escaped characters.
+- Patterns must detect:
+  * Plain and URL-encoded attacks (e.g. admin' or 1=1 --, admin%27+or+1%3D1--).
+  * Unicode / HTML entity forms (&#39;, &quot;).
+  * JSON payload keys/values (\"payloads\": [ \"admin' or 1=1\" ]).
+  * Flexible spacing and optional quotes.
+  * SQL comment operators (--, --+, --␣, #, /* */).
 
-Example:
-Existing rules: id:1002, id:1003, id:1004
-New attack detected → Generate: id:1005, id:1006
-Output ALL rules: 1002, 1003, 1004, 1005, 1006 (via rewrite_rule_file)"""
+RULE GENERATION STRATEGY (per malicious payload):
+1. Specific strong regex – tightly match the attack including comment suffixes.
+2. Generic SQLi keyword pattern – covers (or|and) 1=1, union select, select ... from, sleep().
+3. Loose/fragmented regex – handles missing quotes or reordered fragments.
+4. Simple substring rule – @contains for obvious literals (“admin' or 1=1”, “admin%27+or+1%3D1”).
+5. JSON-aware/encoded rule – matches payloads embedded inside JSON arrays or URL-encoded lists.
+
+RULE IDS:
+- Keep existing rules intact.
+- New rules must use unique, sequential IDs (no gaps or duplicates).
+
+DO NOT block endpoints; only block malicious payload patterns.
+
+OUTPUT FORMAT (apply transforms to EVERY rule):
+SecRule ARGS|REQUEST_BODY "@rx (?i)pattern" \
+"id:XXXX,phase:2,deny,status:403,log,t:urlDecode,t:urlDecodeUni,t:htmlEntityDecode,t:lowercase,t:compressWhitespace,msg:'Meaningful description'"
+
+SecRule ARGS|REQUEST_BODY "@contains literal" \
+"id:YYYY,phase:2,deny,status:403,log,t:urlDecode,t:urlDecodeUni,t:htmlEntityDecode,t:lowercase,t:compressWhitespace,msg:'Meaningful description'"
+
+Only output SecRule directives. No explanations. Ensure generated rules would block admin' or 1=1 -- style injections."""
 
 class MCPClient:
     def __init__(self):
@@ -68,7 +90,7 @@ class MCPClient:
         while not new_rules_written:
 
             completion_args = {
-                "model": "qwen/qwen3-32b",
+                "model": "openai/gpt-oss-120b",
                 "messages": messages,
                 "temperature": 0.8,
                 "top_p": 0.8,
@@ -127,18 +149,7 @@ def run_mcp_client(payloads: list, script_path: str = "app/services/mcp_server.p
         try:
             await client.connect_to_server(script_path)
             json_string = json.dumps({"payloads": payloads})
-            prompt = f"""Analyze this payload: {json_string}
-
-If this payload is MALICIOUS:
-1. Call read_rule_file to get existing rules
-2. Parse existing IDs and find the highest ID
-3. Generate NEW ModSecurity rules for this attack (starting from highest_id + 1)
-4. Call rewrite_rule_file with ALL rules (existing rules + new rules)
-5. Ensure all IDs are unique and sequential
-
-If payload is safe, do nothing.
-
-Only output ModSecurity SecRule directives, no explanations."""
+            prompt = f"""Analyze this payload in json format: {json_string}"""
             await client.call_llm(prompt)
         finally:
             await client.close()

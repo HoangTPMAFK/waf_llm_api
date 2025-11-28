@@ -11,6 +11,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+import logging
 
 MODEL_NAME = "jackaduma/SecBERT"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -205,7 +206,7 @@ class XGBoostDetector:
         self.model = xgb.Booster()
         self.model.load_model(model_path)
 
-    def predict(self, payloads: List[str]) -> bool:
+    def predict(self, payloads: List[str], logger: logging.Logger) -> bool:
         preprocessed_payloads = preprocess_payloads(payloads)
         embeddings = secbert_extract_flexible(
             preprocessed_payloads,
@@ -218,4 +219,12 @@ class XGBoostDetector:
         preds = self.model.predict(dmatrix)
 
         labels = ["anom" if p >= 0.5 else "norm" for p in preds]
+
+        for payload, score, label in zip(payloads, preds, labels):
+            if label == "anom":
+                logger.warning(f"🚨 MALICIOUS PAYLOAD DETECTED")
+                logger.warning(f"  • Payload: {payload}")
+                logger.warning(f"  • Score: {float(score):.4f}")
+                logger.warning("-----------------------------------")
+
         return all(label == "norm" for label in labels)
