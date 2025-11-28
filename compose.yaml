@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - modsec_rules:/etc/modsec/rules
+      - ./shared_rules:/etc/modsec/rules
       - ./waf_firewall/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./waf_firewall/logs/modsec_audit.log:/var/log/modsec_audit.log
       - ./waf_firewall/logs/modsec_debug.log:/var/log/modsec_debug.log
@@ -26,7 +26,7 @@ services:
       - "5000:5000"
     volumes:
       - ./ml_detector:/app
-      - modsec_rules:/app/modsec_rules
+      - ./shared_rules:/app/modsec_rules
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY:-default-secret-key}
     networks:
@@ -44,9 +44,6 @@ services:
       - waf_network
     depends_on:
       - ml_detector
-
-volumes:
-  modsec_rules:
 
 networks:
   waf_network:

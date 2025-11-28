@@ -1,0 +1,43 @@
+╔════════════════════════════════════════════════════════╗
+║           🧪 QUICK MANUAL TEST                        ║
+╚════════════════════════════════════════════════════════╝
+
+┌─ STEP 1: Open Browser ─────────────────────────────────┐
+│  http://localhost:8080/login                           │
+└────────────────────────────────────────────────────────┘
+
+┌─ STEP 2: Fill Form (SQL Injection) ────────────────────┐
+│  Username: admin' or 1=1--                             │
+│  Password: 123                                         │
+│  Click: Submit                                         │
+└────────────────────────────────────────────────────────┘
+
+┌─ STEP 3: First Time Result ────────────────────────────┐
+│  ✓ You see: Normal page (200 OK)                      │
+│  ✓ Behind scenes: ML detecting... LLM generating...   │
+└────────────────────────────────────────────────────────┘
+
+┌─ STEP 4: Wait & Watch ─────────────────────────────────┐
+│  Wait: 15-20 seconds                                   │
+│  Watch: ./shared_rules/custom-rules.conf               │
+│  Look for: NEW RULE APPEARS! 🎉                        │
+└────────────────────────────────────────────────────────┘
+
+┌─ STEP 5: Try Again ────────────────────────────────────┐
+│  Submit: Same credentials again                        │
+│  You see: 403 FORBIDDEN ⛔                             │
+│  SUCCESS! Attack is blocked!                           │
+└────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════╗
+║  VISUAL PROOF OF BLOCKING:                            ║
+║  ┌──────────────────────────────────┐                 ║
+║  │  403 Forbidden                   │                 ║
+║  │                                  │                 ║
+║  │  Request blocked by WAF          │                 ║
+║  │                                  │                 ║
+║  │  nginx/1.21.4                    │                 ║
+║  └──────────────────────────────────┘                 ║
+╚════════════════════════════════════════════════════════╝
+
+More details: cat MANUAL_TESTING_GUIDE.md

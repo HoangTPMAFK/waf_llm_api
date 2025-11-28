@@ -26,6 +26,10 @@ def malicious_payload_detect():
         client_ip = data.get("client_ip", request.remote_addr)
         timestamp = datetime.now().isoformat()
         
+        # Convert dict to JSON string if needed for detector
+        if isinstance(result, dict):
+            result = json.dumps(result)
+        
         logger.info(f"🔍 Analyzing request from {client_ip}")
         logger.info(f"📦 Payload preview: {str(result)[:200]}...")
         
