@@ -1,6 +1,6 @@
-FROM python:3.11-alpine
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
-RUN apk update && apk add sqlite
+RUN apt update && apt install -y sqlite3 python3 python3-pip
 
 WORKDIR /ml_detector
 
@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "run.py"]
+CMD ["python3", "run.py"]
